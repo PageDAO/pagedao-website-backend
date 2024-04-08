@@ -1,6 +1,7 @@
 const express = require('express');
 const dotenv = require('dotenv').config();
 const axios = require('axios');
+const viem = require('ethers');
 
   
 const app = express();
@@ -21,6 +22,10 @@ app.get('/users/:alias', async (req, res)=>{
             Authorization: `Bearer ${process.env.DYNAMIC_API_KEY}`
         }
     });
+    if (response.data.users.length === 0) {
+        res.status(404).send('User not found');
+        return;
+    }
     //create some dummy data to insert into the metadata field
     response.data.users[0].metadata = {
           "userId": "c25123ec-62aa-4534-8153-8a68382c3df2",
@@ -59,7 +64,30 @@ app.get('/users/:alias', async (req, res)=>{
       
     res.send(JSON.stringify(response.data.users[0].metadata));
 });
-  
+
+app.post('/items', async (req, res)=>{
+  //todo: I need to use viem to load an ethereum wallet from private key and create a transaction to send the shared key to the axelar gateway contract
+  try {
+    const provider = new ethers.providers.JsonRpcProvider('https://polygon-mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID');
+    const wallet = new ethers.Wallet(process.env.EVM_PRIVATE_KEY, provider);
+
+    // Generate shared key here
+    const sharedKey = 'YOUR_SHARED_KEY';
+
+    const transaction = {
+        to: 'AXELAR_GATEWAY_CONTRACT_ADDRESS',
+        data: ethers.utils.hexlify(ethers.utils.toUtf8Bytes(sharedKey))
+    };
+
+    const signedTransaction = await wallet.signTransaction(transaction);
+    const tx = await provider.sendTransaction(signedTransaction);
+
+    res.status(200).send(JSON.stringify(tx));
+} catch (error) {
+    res.status(500).send({ message: 'Error processing transaction' });
+}
+});
+
 app.listen(PORT, (error) =>{
     if(!error)
         console.log("Server is Successfully Running and App is listening on port "+ PORT);
